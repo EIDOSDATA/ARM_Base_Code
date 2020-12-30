@@ -1,0 +1,5 @@
+{
+    "sketch": "Higi_Side_Switch_Test\\High_Side_Switch.ino",
+    "board": "arduino:avr:uno",
+    "port": "COM12"
+}
