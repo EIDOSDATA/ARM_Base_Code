@@ -30,15 +30,15 @@
 /* USER CODE BEGIN PTD */
 typedef struct ArduinoShield // data structure to remember the output status of each PROFET U1-U4 and the LEDs status on the Arduino Shield
 {
-	bool status_In_U1; // = 0;         // PROFET U1 IN status
-	bool status_In_U2; // = 0;         // PROFET U2 IN status
-	bool status_In_U3; // = 0;         // PROFET U3 IN status
-	bool status_In_U4; // = 0;         // PROFET U4 IN status
+	uint8_t status_In_U1; // = 0;         // PROFET U1 IN status
+	uint8_t status_In_U2; // = 0;         // PROFET U2 IN status
+	uint8_t status_In_U3; // = 0;         // PROFET U3 IN status
+	uint8_t status_In_U4; // = 0;         // PROFET U4 IN status
 
-	bool status_LED1; // = 0;         // LED1 status
-	bool status_LED2; // = 0;         // LED2 status
-	bool status_LED3; // = 0;         // LED3 status
-	bool status_LED4; // = 0;         // LED4 status
+	uint8_t status_LED1; // = 0;         // LED1 status
+	uint8_t status_LED2; // = 0;         // LED2 status
+	uint8_t status_LED3; // = 0;         // LED3 status
+	uint8_t status_LED4; // = 0;         // LED4 status
 
 	float max_adc_reading; // = 1024.0; // ADC = 10 bit -> 0x400 -> 1024 -> 1 digit = 0.0048828125V resolution
 	float adc_reference_voltage; // = 5.0;      // ADC reference voltage = 5V
@@ -89,7 +89,7 @@ typedef struct ArduinoShield // data structure to remember the output status of 
 } ArduinoShield;
 
 typedef enum
-{                  // the PushButton can be configured to digital or analog mode
+{     // the PushButton can be configured to digital or analog mode
 	digital = 0, analog = 1,
 } PushButton;
 
@@ -126,6 +126,10 @@ bool buttonState = 1; // button state -> reading of the push button -> pressed o
 bool lastButtonState = 1;         // last button state
 bool buttonFlag = 0;         // button toggle flag
 unsigned int countSM = 0;         // counter for the number of button presses
+
+uint32_t ADC_Value[4];
+uint8_t UBuf[500];
+uint8_t tcnt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -136,19 +140,251 @@ static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
+void WriteShieldLED(uint8_t _LED1, uint8_t _LED2, uint8_t _LED3, uint8_t _LED4,
+		ArduinoShield *Shield)
+{
+	if (_LED1 == 0)
+	{
+		HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+	}
+	if (_LED2 == 0)
+	{
+		HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
+	}
+	if (_LED3 == 0)
+	{
+		HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
+	}
+	if (_LED4 == 0)
+	{
+		HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, GPIO_PIN_SET);
+	}
+	Shield->status_LED1 = _LED1;   // remember LED1 status
+	Shield->status_LED2 = _LED2;   // remember LED" status
+	Shield->status_LED3 = _LED3;   // remember LED3 status
+	Shield->status_LED4 = _LED4;   // remember LED4 status
+}
+
+void WriteShieldIN(uint8_t _In1, uint8_t _In2, uint8_t _In3, uint8_t _In4,
+		ArduinoShield *Shield)
+{
+	if (_In1 == 0)
+	{
+		HAL_GPIO_WritePin(IN1_GPIO_Port, IN1_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(IN1_GPIO_Port, IN1_Pin, GPIO_PIN_SET);
+	}
+	if (_In2 == 0)
+	{
+		HAL_GPIO_WritePin(IN2_GPIO_Port, IN2_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(IN2_GPIO_Port, IN2_Pin, GPIO_PIN_SET);
+	}
+	if (_In3 == 0)
+	{
+		HAL_GPIO_WritePin(IN3_GPIO_Port, IN3_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(IN3_GPIO_Port, IN3_Pin, GPIO_PIN_SET);
+	}
+	if (_In4 == 0)
+	{
+		HAL_GPIO_WritePin(IN4_GPIO_Port, IN4_Pin, GPIO_PIN_RESET);
+	}
+	else
+	{
+		HAL_GPIO_WritePin(IN4_GPIO_Port, IN4_Pin, GPIO_PIN_SET);
+	}
+	Shield->status_In_U1 = _In1; // remember PROFET U1 output status
+	Shield->status_In_U2 = _In2; // remember PROFET U2 output status
+	Shield->status_In_U3 = _In3; // remember PROFET U3 output status
+	Shield->status_In_U4 = _In4; // remember PROFET U4 output status
+}
+
+void Read_ADC(ArduinoShield *Shield)
+{
+	// Attention: notice the PROFET+2 12V switching / sense timing (e.g. datasheet BTS7002-1EPP -> page 21, 25, 43, 44
+	// Switch-ON Delay                                       tON(DELAY)     : 130µs
+	// Switch-ON Time                                        tON            : 210µs
+	// Switch-OFF Delay                                      tOFF(DELAY)    : 160µs
+	// Switch-OFF Time                                       tOFF           : 220µs
+	//
+	// SENSE Open Load in OFF Delay Time                     tIS(OLOFF)_D   : 300µs
+	// SENSE Settling Time with Nominal Load Current Stable  tsIS(ON)       :  40µs
+	// SENSE Disable Time                                    tsIS(OFF)      :  20µs
+	// SENSE Settling Time after Load Change                 tsIS(CL)       :  20µs
+	// tsIS(DIAG) <= 3 x (tON_max + tsIS(ON)_max)
+	// Attention: if diagnosis of open load in OFF is used -> consider the SENSE Open Load in OFF Delay Time
+
+	// Vbb Read
+	HAL_ADC_Start(&hadc1);
+	HAL_ADC_PollForConversion(&hadc1, 100);
+	Shield->A1_adc_raw_value_Vbb = HAL_ADC_GetValue(&hadc1);    // Vbb raw value
+	HAL_ADC_Stop(&hadc1);
+
+	/* Change GPIO Channel */
+	HAL_GPIO_WritePin(DEN1_DEN3_GPIO_Port, DEN1_DEN3_Pin, GPIO_PIN_SET); // Select sense signal from PROFET+2 device U1 and U3 (DEN1_DEN3= high,DEN2_DEN4 = low)
+	HAL_GPIO_WritePin(DEN2_DEN4_GPIO_Port, DEN2_DEN4_Pin, GPIO_PIN_RESET); // Select sense signal from PROFET+2 device U1 and U3
+	HAL_GPIO_WritePin(OLOFF_GPIO_Port, OLOFF_Pin, GPIO_PIN_RESET); // open load in state OFF diagnosis disabled
+	HAL_Delay(1); // generously delay of 1ms to give the PROFET+2 time to provide the sense signal
+	// tsIS(DIAG) <= 3 x (tON_max + tsIS(ON)_max) = 3 x (210µs + 40) = 750µs!
+	// Vbb, ADC 1,3 READ
+	HAL_ADC_Start_DMA(&hadc1, ADC_Value, 4);
+	for (int i = 0; i < 4; i++)
+	{
+		HAL_DMA_PollForTransfer(&hdma_adc1, HAL_DMA_FULL_TRANSFER, 1000);
+	}
+	HAL_ADC_Stop_DMA(&hadc1);
+	// ADC 1,3 SET Data
+	Shield->A2_adc_raw_value_IS_1 = ADC_Value[1]; // read analog value from analog input A2 -> device U1 -> sense IS1
+	Shield->A3_adc_raw_value_IS_3 = ADC_Value[2]; // read analog value from analog input A3 -> device U3 -> sense IS3
+
+	/* Change GPIO Channel */
+	HAL_GPIO_WritePin(DEN1_DEN3_GPIO_Port, DEN1_DEN3_Pin, GPIO_PIN_RESET); // Select sense signal from PROFET+2 device U2 and U4 (DEN1_DEN3= low, DEN2_DEN4 = high)
+	HAL_GPIO_WritePin(DEN2_DEN4_GPIO_Port, DEN2_DEN4_Pin, GPIO_PIN_SET); // Select sense signal from PROFET+2 device U2 and U4
+	HAL_Delay(1); // generously delay of 1ms to give the PROFET+2 time to provide the sense signal
+	/* Vbb, ADC 2,4 READ */
+	HAL_ADC_Start_DMA(&hadc1, ADC_Value, 4);
+	for (int i = 0; i < 4; i++)
+	{
+		HAL_DMA_PollForTransfer(&hdma_adc1, HAL_DMA_FULL_TRANSFER, 1000);
+	}
+	HAL_ADC_Stop_DMA(&hadc1);
+	// ADC 2,4 SET Data
+	Shield->A2_adc_raw_value_IS_2 = ADC_Value[1]; // read analog value from analog input A2 -> device U2 -> sense IS2
+	Shield->A3_adc_raw_value_IS_4 = ADC_Value[2]; // read analog value from analog input A3 -> device U4 -> sense IS4
+
+////////////////////////////////////////////////////////////////////////////////
+
+	// Calculate ADC voltage for analog input A1 -> Vbb
+	Shield->A1_Vbb_ADC_Voltage = (float) (Shield->A1_adc_raw_value_Vbb
+			/ Shield->max_adc_reading * Shield->adc_reference_voltage); // e.g. 1024/1024*5 -> 5V max
+	Shield->A1_Vbb_ADC_Voltage = (Shield->A1_Vbb_ADC_Voltage
+			- Shield->A1_Vbb_Offset) * Shield->A1_Vbb_Gain; // e.g. (5V - 0V) * 1 = 5V
+	Shield->A1_Vbb_Real_Voltage = (float) ((Shield->A1_Vbb_ADC_Voltage
+			* (Shield->Vbb_Resistor_1 + Shield->Vbb_Resistor_2))
+			/ Shield->Vbb_Resistor_2); // e.g. (5V *(47k + 10k))/10k = 28.5V max measurable VS
+
+	// Calculate ADC voltage for analog input A2 -> ISense 1
+	Shield->U1_IS_Voltage = Shield->A2_adc_raw_value_IS_1
+			/ Shield->max_adc_reading * Shield->adc_reference_voltage; // e.g. 1024/1024*5 -> 5V
+	Shield->U1_IS_Ampere = (float) ((Shield->U1_IS_Voltage * Shield->kilis)
+			/ 1000); // e.g. (5*22700)/1000 -> 113.5 A max
+	Shield->U1_IS_Ampere = (Shield->U1_IS_Ampere - Shield->U1_Ampere_Offset)
+			* Shield->U1_Ampere_Gain;             // (113.5 - 0) * 1 = 113.5A
+
+	// Calculate ADC voltage for analog input A2 -> ISense 2
+	Shield->U2_IS_Voltage = Shield->A2_adc_raw_value_IS_2
+			/ Shield->max_adc_reading * Shield->adc_reference_voltage; // e.g. calculation for 10A // e.g. (91/1024)*5 = 0,4443359375
+	Shield->U2_IS_Ampere = (float) ((Shield->U2_IS_Voltage * Shield->kilis)
+			/ 1000); // e.g. (0,4443359375*22700)/1000 = 10,086 A
+	Shield->U2_IS_Ampere = (Shield->U2_IS_Ampere - Shield->U2_Ampere_Offset)
+			* Shield->U2_Ampere_Gain;           // e.g. (10,086-0) * 1 = 10,086A
+
+	// Calculate ADC voltage for analog input A3 -> ISense 3
+	Shield->U3_IS_Voltage = Shield->A3_adc_raw_value_IS_3
+			/ Shield->max_adc_reading * Shield->adc_reference_voltage; // e.g. calculation for 2.2A // e.g. (20/1024)*5 = 0,09765625
+	Shield->U3_IS_Ampere = (float) ((Shield->U3_IS_Voltage * Shield->kilis)
+			/ 1000); // (0,09765625*22700)/1000 = 2,216796 A
+	Shield->U3_IS_Ampere = (Shield->U3_IS_Ampere - Shield->U3_Ampere_Offset)
+			* Shield->U3_Ampere_Gain;           // e.g. (2,2167-0) * 1 = 2,2167A
+
+	// Calculate ADC voltage for analog input A3 -> ISense 4
+	Shield->U4_IS_Voltage = Shield->A3_adc_raw_value_IS_4
+			/ Shield->max_adc_reading * Shield->adc_reference_voltage;
+	Shield->U4_IS_Ampere = (float) ((Shield->U4_IS_Voltage * Shield->kilis)
+			/ 1000);
+	Shield->U4_IS_Ampere = (Shield->U4_IS_Ampere - Shield->U4_Ampere_Offset)
+			* Shield->U4_Ampere_Gain;
+
+	HAL_GPIO_WritePin(OLOFF_GPIO_Port, OLOFF_Pin, GPIO_PIN_RESET);
+}
+
+void PrintStatus(ArduinoShield *Shield)
+{
+	sprintf(UBuf, "OUT1: %d\r\n"
+			"OUT2: %d\r\n"
+			"OUT3: %d\r\n"
+			"OUT4: %d\r\n\r\n"
+
+			"LED1: %d\r\n"
+			"LED2: %d\r\n"
+			"LED3: %d\r\n"
+			"LED4: %d\r\n\r\n", Shield->status_In_U1, Shield->status_In_U2,
+			Shield->status_In_U3, Shield->status_In_U4, Shield->status_LED1,
+			Shield->status_LED2, Shield->status_LED3, Shield->status_LED4);
+
+	HAL_UART_Transmit(&huart2, (uint8_t*) UBuf, strlen(UBuf), 1000);
+}
+
+void PrintADC(ArduinoShield *Shield)
+{
+	sprintf(UBuf, "=================================\r\n"
+			"Vbb - ADC raw value : %d\r\n"
+			"ADC-Voltage (0-5V) : %f\r\n"
+			"Vbb-Voltage: %f\r\n\r\n"
+
+			"Out 1 - ADC raw value : %d\r\n"
+			"ADC-Voltage (0-5V) : %f\r\n"
+			"Sense current OUT 1 : %f\r\n\r\n"
+
+			"Out 2 - ADC raw value : %d\r\n"
+			"ADC-Voltage (0-5V) : %f\r\n"
+			"Sense current OUT 2 : %f\r\n\r\n"
+
+			"Out 3 - ADC raw value : %d\r\n"
+			"ADC-Voltage (0-5V) : %f\r\n"
+			"Sense current OUT 3 : %f\r\n\r\n"
+
+			"Out 4 - ADC raw value : %d\r\n"
+			"ADC-Voltage (0-5V) : %f\r\n"
+			"Sense current OUT 4 : %f\r\n\r\n"
+
+	, Shield->A1_adc_raw_value_Vbb, Shield->A1_Vbb_ADC_Voltage,
+			Shield->A1_Vbb_Real_Voltage,
+
+			Shield->A2_adc_raw_value_IS_1, Shield->U1_IS_Voltage,
+			Shield->U1_IS_Ampere,
+
+			Shield->A2_adc_raw_value_IS_2, Shield->U2_IS_Voltage,
+			Shield->U2_IS_Ampere,
+
+			Shield->A3_adc_raw_value_IS_3, Shield->U3_IS_Voltage,
+			Shield->U3_IS_Ampere,
+
+			Shield->A3_adc_raw_value_IS_4, Shield->U4_IS_Voltage,
+			Shield->U4_IS_Ampere);
+	HAL_UART_Transmit(&huart2, (uint8_t*) UBuf, strlen(UBuf), 1000);
+}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if (htim->Instance == TIM6)
 	{
-		//HAL_UART_Transmit(&huart2, "TX UART2 : ", 11, 1000);
-		HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
-		HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
-		HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-		HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
+		tcnt++;
 	}
 }
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == huart2.Instance)
@@ -159,7 +395,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		bufTail %= 200;
 	}
 }
-
 int __io_putchar(int ch)
 {
 	uint8_t *tr = (uint8_t*) &ch;
@@ -211,7 +446,7 @@ int main(void)
 			.status_LED3 = 0,         // LED3 status
 			.status_LED4 = 0,         // LED4 status
 
-			.max_adc_reading = 1024.0, // ADC = 10 bit -> 0x400 -> 1024 -> 1 digit = 0.0048828125V resolution
+			.max_adc_reading = 4096.0, // ADC = 10 bit -> 0x400 -> 1024 -> 1 digit = 0.0048828125V resolution
 			.adc_reference_voltage = 5.0,         // ADC reference voltage = 5V
 
 			.A0_adc_raw_value_PushButton = 0, // ADC raw value reading Analog Input A0 (push botton)
@@ -299,8 +534,9 @@ int main(void)
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start_IT(&htim6);
-	//WriteShieldIN(false, false, false, false);
-	//writeShieldLED(false, false, false, false);
+	WriteShieldIN(0, 0, 0, 0, &Shield);
+	WriteShieldLED(0, 0, 0, 0, &Shield);
+
 	printf("-----------------------------------------------------\r\n");
 	printf(" Infineon PROFET+2 12V Arduino Shield HW Rev 5.0     \r\n");
 	printf(" Software Version 1.00                SW Button3     \r\n");
@@ -319,15 +555,48 @@ int main(void)
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-
 		rcvStat2 = HAL_UART_Receive(&huart2, &received2, 1, 10);
 		if (rcvStat2 == HAL_OK)
 		{
-			HAL_UART_Transmit(&huart2, "TX UART2 : ", 11, 1000);
+			HAL_UART_Transmit(&huart2, (uint8_t*) "TX UART2 : ", 11, 1000);
 			HAL_UART_Transmit(&huart2, &received2, 1, 1000);
-			HAL_UART_Transmit(&huart2, "\r\n\r\n", 4, 1000);
-
+			HAL_UART_Transmit(&huart2, (uint8_t*) "\r\n\r\n", 4, 1000);
+			switch (received2)
+			// switch the outputs based on the button counter
+			{
+			case '0':  // switch all outputs an LEDs on the Arduino Shield OFF
+				WriteShieldLED(0, 0, 0, 0, &Shield);
+				WriteShieldIN(0, 0, 0, 0, &Shield);
+				break;
+			case '1':  // switch OUT1 and LED1 ON
+				WriteShieldLED(1, 0, 0, 0, &Shield);
+				WriteShieldIN(1, 0, 0, 0, &Shield);
+				break;
+			case '2':  // switch OUT2 and LED2 ON
+				WriteShieldLED(0, 1, 0, 0, &Shield);
+				WriteShieldIN(0, 1, 0, 0, &Shield);
+				break;
+			case '3':  // switch OUT3 and LED3 ON
+				WriteShieldLED(0, 0, 1, 0, &Shield);
+				WriteShieldIN(0, 0, 1, 0, &Shield);
+				break;
+			case '4':  // switch OUT4 and LED4 ON
+				WriteShieldLED(0, 0, 0, 1, &Shield);
+				WriteShieldIN(0, 0, 0, 1, &Shield);
+				break;
+			default: // switch all outputs an LEDs on the Arduino Shield OFF
+				//received2 = 0;
+				break;
+			}
 		}
+		if (tcnt >= 30)
+		{
+			Read_ADC(&Shield);
+			PrintStatus(&Shield);
+			PrintADC(&Shield);
+			tcnt = 0;
+		}
+
 	}
 	/* USER CODE END 3 */
 }
@@ -409,7 +678,7 @@ static void MX_ADC1_Init(void)
 	hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
 	hadc1.Init.Resolution = ADC_RESOLUTION_12B;
 	hadc1.Init.ScanConvMode = ENABLE;
-	hadc1.Init.ContinuousConvMode = DISABLE;
+	hadc1.Init.ContinuousConvMode = ENABLE;
 	hadc1.Init.DiscontinuousConvMode = DISABLE;
 	hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
 	hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
