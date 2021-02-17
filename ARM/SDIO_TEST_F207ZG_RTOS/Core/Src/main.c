@@ -510,22 +510,22 @@ void uSD_Task_Function(void const *argument)
 	/* Infinite loop */
 	for (;;)
 	{
-		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_6);
 		if (fileOnce == 0)
 		{
 			//	xSemaphoreTake(myMutex01Handle,100);
 			res = f_mount(&SDFatFs, SDPath, 1);
 			if (res == FR_OK)
 			{
-				//HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_12);
 				if (f_open(&MyFile, (char*) fName, FA_WRITE | FA_CREATE_ALWAYS)
 						== FR_OK)
 				{
 					res = f_write(&MyFile, alaram, sizeof(alaram), &bytesCnt);
 					f_close(&MyFile);
-					HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_SET);
+					//HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
+					HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_6);
 
-				}/*else if(f_open(&file,(char *)fName, FA_WRITE | FA_CREATE_ALWAYS)== FR_OK)
+				}
+				/*else if(f_open(&file,(char *)fName, FA_WRITE | FA_CREATE_ALWAYS)== FR_OK)
 				 {
 				 UINT bytesCnt= 0;
 				 f_write(&file,alaram,sizeof(alaram),&bytesCnt);
@@ -534,12 +534,12 @@ void uSD_Task_Function(void const *argument)
 			}
 			else
 			{
-				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
 			}
 			fileOnce = 1;
 			//xSemaphoreGive(myMutex01Handle);
 		}
-		osDelay(500);
+		osDelay(1000);
 	}
 	/* USER CODE END uSD_Task_Function */
 }
