@@ -50,7 +50,8 @@ Middlewares/Third_Party/FatFs/src/drivers/sd_diskio.o: \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+ ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
+ ../Middlewares/Third_Party/FatFs/src/drivers/sd_diskio.h
 
 ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
 
@@ -159,3 +160,5 @@ Middlewares/Third_Party/FatFs/src/drivers/sd_diskio.o: \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h:
 
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
+
+../Middlewares/Third_Party/FatFs/src/drivers/sd_diskio.h:

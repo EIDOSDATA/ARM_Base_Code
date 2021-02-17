@@ -63,8 +63,8 @@ all: main-build
 main-build: RTOS_SDIO_DMA_TEST_F207ZG.elf secondary-outputs
 
 # Tool invocations
-RTOS_SDIO_DMA_TEST_F207ZG.elf: $(OBJS) $(USER_OBJS) C:\Users\EIDOS\STM32CubeIDE\workspace_1.5.1\RTOS_SDIO_DMA_TEST_F207ZG\STM32F207ZGTX_FLASH.ld
-	arm-none-eabi-gcc -o "RTOS_SDIO_DMA_TEST_F207ZG.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\EIDOS\STM32CubeIDE\workspace_1.5.1\RTOS_SDIO_DMA_TEST_F207ZG\STM32F207ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="RTOS_SDIO_DMA_TEST_F207ZG.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+RTOS_SDIO_DMA_TEST_F207ZG.elf: $(OBJS) $(USER_OBJS) C:\Users\EIDOS\Desktop\RTOS_SDIO_DMA_TEST_F207ZG\STM32F207ZGTX_FLASH.ld
+	arm-none-eabi-gcc -o "RTOS_SDIO_DMA_TEST_F207ZG.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\EIDOS\Desktop\RTOS_SDIO_DMA_TEST_F207ZG\STM32F207ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="RTOS_SDIO_DMA_TEST_F207ZG.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
